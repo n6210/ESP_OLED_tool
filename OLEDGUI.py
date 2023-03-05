@@ -1,6 +1,6 @@
-#!usr/bin/env python
+#!usr/bin/env python3
 #
-# OLED display picture editor
+# OLED display bitmap editor
 #
 import sys
 from tkinter import *
@@ -16,11 +16,12 @@ class EditorWindow():
         win.title('OLED Picture Editor')
         win.protocol('WM_DELETE_WINDOW', self.cmdQuit)	# intercept Ctrl_Q and Close Window button
         self.win = win
+        self.hexFormat = FALSE
 
         sf = 16
         self.sf = sf
-        wx = 32 
-        wy = 32
+        
+        wx = 16; wy = 16
         self.wx = wx; self.wy = wy
         self.array = [ 0 for x in range( wx // 8 * wy)]
         self.modified = False
@@ -51,6 +52,7 @@ class EditorWindow():
 
         #------- button Close -----------------------------------
         # Button( win, text='FlipX', takefocus=YES, command=self.cmdFlipX ).grid( padx=10, pady=10, row=3, column=0)
+        Checkbutton(win, text='Format hex', takefocus=YES, command=self.cmdSetFormat).grid( padx=10, pady=10, row=3, column=1)
         Button(win, text='Save', takefocus=YES, command=self.cmdSave ).grid( padx=10, pady=10, row=3, column=2)
         Button(win, text='Close', takefocus=NO, command=self.cmdQuit).grid( padx=10, pady=10, row=3, column=3)
 
@@ -61,20 +63,20 @@ class EditorWindow():
                 self.drawPixel(x, y)       
 
     def getPixel(self, x, y):
-        return self.array[(x>>3)*self.wy + y] & (0x80 >> (x & 7)) != 0
+        return self.array[(x >> 3) + y * (self.wx >> 3)] & (0x80 >> (x & 7)) != 0
 
     def setPixel(self, x, y):
-        self.array[(x>>3)*self.wy + y] |= (0x80 >> (x & 7))
+        self.array[(x >> 3) + y * (self.wx >> 3)] |= (0x80 >> (x & 7))
         self.drawPixel(x, y)
 
     def invPixel(self, x, y):
-        self.array[(x>>3)*self.wy + y] ^= (0x80 >> (x & 7))
+        self.array[(x >> 3) + y * (self.wx >> 3)] ^= (0x80 >> (x & 7))
         self.drawPixel(x, y)
 
     def drawPixel(self, x, y):
         sf = self.sf
         brd = 1+self.brd
-        if  self.getPixel(x, y):
+        if self.getPixel(x, y):
             self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'white')
         else:
             self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'black')
@@ -126,18 +128,32 @@ class EditorWindow():
             if not messagebox.askokcancel('Load', 'Unsaved changes will be lost,\n are you sure?', icon='warning'):            
                 return
         i = 0
-        last = (self.wx * self.wy//8) 
+        last = (self.wx // 8 * self.wy) 
         try:
             with open(self.filename.get()) as f:
                 ch = f.read(1)
                 while ch != '{': ch = f.read(1)
                 while i < last:
                     ch = f.read(1)
-                    while ch < '0' : ch = f.read( 1)
-                    if ch != '0': break  
-                    s = f.read(3)
-                    try: self.array[i] = int('0'+s, base=16)
-                    except ValueError: break
+                    while ch < '0' : ch = f.read(1)
+                    if ch != '0': 
+                        if ch == '}' :
+                            self.drawPicture()
+                            self.modified = False
+                            return
+                        else :
+                            break
+                    ch = f.read(1)
+                    if ch == 'x' :
+                        s = f.read(2)
+                        try: self.array[i] = int('0x'+s, base=16)
+                        except ValueError: break
+                    elif ch == 'b' :
+                        s = f.read(8)
+                        try: 
+                            self.array[i] = int('0b'+s, base=2)
+                        except ValueError: break
+                            
                     i += 1 
                 else: 
                     print('File loaded successfully')
@@ -165,17 +181,25 @@ class EditorWindow():
                 f.write(' *  %s x %s \n' % ( self.wx, self.wy))
                 f.write(' */ \n')
                 f.write('static const unsigned char PROGMEM %s[] = { \n' % base)
-                for x in range(0, self.wx * self.wy//8, 16):
-                    for k in range(16):
-                        f.write('0x%02x, '% self.array[x + k])
-                    f.write('\n')
+                if self.hexFormat :
+                    for x in range(0, self.wx * self.wy//8, 16):
+                        for k in range(16):
+                            f.write('0x%02x, '% self.array[x + k])
+                        f.write('\n')
+                else:
+                    for x in range(0, self.wx * self.wy//8, 2):
+                        for k in range(2):
+                            f.write("0b{0:08b},".format(self.array[x + k]))
+                        f.write('\n')
                 f.write('};\n')
                 self.modified = False
         except IOError: print('Cannot write file:', filename)
+    def cmdSetFormat(self):
+        self.hexFormat = not self.hexFormat
 
-    def cmdQuit( self):
+    def cmdQuit(self):
         if self.modified: 
-            if  not messagebox.askokcancel("Quit", "There are unsaved changes,\n are you sure?"): return
+            if not messagebox.askokcancel("Quit", "There are unsaved changes,\n are you sure?"): return
         self.win.quit()
 
 if __name__ == '__main__': 
