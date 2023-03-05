@@ -26,37 +26,43 @@ class EditorWindow():
         self.array = [ 0 for x in range( wx // 8 * wy)]
         self.modified = False
 
-        Label(win, text='Filename:').grid(padx=10, pady=1, row=1, column=0, sticky=W)
+        Label(win, text='Filename:').grid(padx=5, pady=5, row=1, column=0, sticky=W)
 
         self.filename = StringVar()	
         self.filename.set(name)
 
         e = Entry(win, width=32, takefocus=YES, textvariable = self.filename)
-        e.grid(padx=10, pady=10, row=1, column=1, sticky=W)
+        e.grid(padx=5, pady=5, row=1, column=1, sticky=W)
         e.focus_set()   # take over input from other windows, select address field
         e.icursor(END)  # set cursor after last digit
 
-        Button(win, text='Load', takefocus=YES, command=self.cmdLoad).grid( padx=10, pady=10, row=1, column=2)
-        Button(win, text='Import', takefocus=YES, command=self.cmdImport).grid( padx=10, pady=10, row=1, column=3)
+        Checkbutton(win, text='Format hex', takefocus=YES, command=self.cmdSetFormat).grid(padx=5, pady=5, row=1, column=2)
 
+        Button(win, text='Load', takefocus=YES, command=self.cmdLoad).grid(padx=5, pady=5, row=2, column=0, sticky=W)
+        Button(win, text='Import', takefocus=YES, command=self.cmdImport).grid(padx=5, pady=5, row=2, column=1, sticky=W)
+        Button(win, text='Save', takefocus=YES, command=self.cmdSave).grid(padx=5, pady=5, row=2, column=2, sticky=W)
+        Button(win, text='Close', takefocus=NO, command=self.cmdQuit).grid(padx=5, pady=5, row=2, column=3, sticky=W)
+
+        Button(win, text='FlipVert', takefocus=YES, command=self.cmdFlipV).grid(padx=5, pady=5, row=3, column=0, sticky=W)
+        Button(win, text='FlipHoriz', takefocus=YES, command=self.cmdFlipH).grid(padx=5, pady=5, row=3, column=1, sticky=W)
+        
+        
         #------- editor canvas ----------------------------
         brd = 2
         self.brd = brd
         graph = Canvas(win, width=(wx)*sf, height=(wy)*sf, relief='flat', bd=brd, bg='gray')
-        graph.grid(padx=10, row=2, columnspan=4)
+        graph.grid(padx=5, row=4, columnspan=4)
         graph.bind('<Button-1>', self.cmdToggle)   # capture mouse button inside canvas
         self.graph = graph
+
+        self.scale = 3
+        bmp = Canvas(win, width=self.wx * self.scale, height=self.wy * self.scale, relief='flat', bg='black')
+        bmp.grid(padx=5, row=4, column=2)
+        self.bmp = bmp
 
         if name != '':
             self.cmdLoad() 
         self.drawPicture()
-
-        #------- button Close -----------------------------------
-        Button(win, text='FlipVert', takefocus=YES, command=self.cmdFlipV).grid( padx=10, pady=10, row=3, column=0)
-        Button(win, text='FlipHoriz', takefocus=YES, command=self.cmdFlipH).grid( padx=10, pady=10, row=4, column=0)
-        Checkbutton(win, text='Format hex', takefocus=YES, command=self.cmdSetFormat).grid( padx=10, pady=10, row=3, column=1)
-        Button(win, text='Save', takefocus=YES, command=self.cmdSave).grid( padx=10, pady=10, row=3, column=2)
-        Button(win, text='Close', takefocus=NO, command=self.cmdQuit).grid( padx=10, pady=10, row=3, column=3)
 
     #-------------------- Graphs methods
     def drawPicture(self):
@@ -87,8 +93,10 @@ class EditorWindow():
         brd = 1+self.brd
         if self.getPixel(x, y):
             self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'white')
+            self.bmp.create_rectangle(x*self.scale, y*self.scale, (x+1)*self.scale, (y+1)*self.scale, fill='white', activeoutline='white')
         else:
             self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'black')
+            self.bmp.create_rectangle(x*self.scale, y*self.scale, (x+1)*self.scale, (y+1)*self.scale, fill='black', activeoutline='black')
 
     def cmdToggle(self, event):
         x = int((self.graph.canvasx( event.x)-1-self.brd)/self.sf) 
@@ -104,7 +112,6 @@ class EditorWindow():
                 yo = self.wy - 1 - y
                 t = self.array[x + y * lwx], self.array[x + yo * lwx]
                 self.array[x + yo * lwx], self.array[x + y * lwx] = t
-                print(f">> {t}")
         self.drawPicture()
         self.modified = True
 
@@ -217,6 +224,7 @@ class EditorWindow():
                 f.write('};\n')
                 self.modified = False
         except IOError: print('Cannot write file:', filename)
+
     def cmdSetFormat(self):
         self.hexFormat = not self.hexFormat
 
