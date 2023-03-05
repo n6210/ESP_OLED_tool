@@ -26,17 +26,18 @@ class EditorWindow():
         self.array = [ 0 for x in range( wx // 8 * wy)]
         self.modified = False
 
-        Label(win, text='Filename:').grid( padx=10, pady=1, row=1, column=0, sticky=W)
+        Label(win, text='Filename:').grid(padx=10, pady=1, row=1, column=0, sticky=W)
 
         self.filename = StringVar()	
         self.filename.set(name)
-        e = Entry(win, width=64, takefocus=YES, textvariable = self.filename)
-        e.grid( padx=10, pady=10, row=1, column=1, sticky=W)
+
+        e = Entry(win, width=32, takefocus=YES, textvariable = self.filename)
+        e.grid(padx=10, pady=10, row=1, column=1, sticky=W)
         e.focus_set()   # take over input from other windows, select address field
         e.icursor(END)  # set cursor after last digit
 
-        Button(win, text='Load', takefocus=YES, command=self.cmdLoad ).grid( padx=10, pady=10, row=1, column=2)
-        Button(win, text='Import', takefocus=YES, command=self.cmdImport ).grid( padx=10, pady=10, row=1, column=3)
+        Button(win, text='Load', takefocus=YES, command=self.cmdLoad).grid( padx=10, pady=10, row=1, column=2)
+        Button(win, text='Import', takefocus=YES, command=self.cmdImport).grid( padx=10, pady=10, row=1, column=3)
 
         #------- editor canvas ----------------------------
         brd = 2
@@ -51,9 +52,10 @@ class EditorWindow():
         self.drawPicture()
 
         #------- button Close -----------------------------------
-        # Button( win, text='FlipX', takefocus=YES, command=self.cmdFlipX ).grid( padx=10, pady=10, row=3, column=0)
+        Button(win, text='FlipVert', takefocus=YES, command=self.cmdFlipV).grid( padx=10, pady=10, row=3, column=0)
+        Button(win, text='FlipHoriz', takefocus=YES, command=self.cmdFlipH).grid( padx=10, pady=10, row=4, column=0)
         Checkbutton(win, text='Format hex', takefocus=YES, command=self.cmdSetFormat).grid( padx=10, pady=10, row=3, column=1)
-        Button(win, text='Save', takefocus=YES, command=self.cmdSave ).grid( padx=10, pady=10, row=3, column=2)
+        Button(win, text='Save', takefocus=YES, command=self.cmdSave).grid( padx=10, pady=10, row=3, column=2)
         Button(win, text='Close', takefocus=NO, command=self.cmdQuit).grid( padx=10, pady=10, row=3, column=3)
 
     #-------------------- Graphs methods
@@ -67,6 +69,13 @@ class EditorWindow():
 
     def setPixel(self, x, y):
         self.array[(x >> 3) + y * (self.wx >> 3)] |= (0x80 >> (x & 7))
+        self.drawPixel(x, y)
+
+    def setPixel(self, x, y, v):
+        if (v) :
+            self.array[(x >> 3) + y * (self.wx >> 3)] |= (0x80 >> (x & 7))
+        else:
+            self.array[(x >> 3) + y * (self.wx >> 3)] &= ~(0x80 >> (x & 7))
         self.drawPixel(x, y)
 
     def invPixel(self, x, y):
@@ -88,13 +97,27 @@ class EditorWindow():
             self.invPixel(x, y)
             self.modified = True
 
-    def cmdFlipX(self):
-        for y in range(0, self.wy//8*self.wx, self.wx):
-            for x in range(self.wx//2):
-                xo = self.wx-x-1
-                self.array[x + y], self.array[xo + y] = self.array[xo + y], self.array[x + y]
+    def cmdFlipV(self):
+        lwx = self.wx // 8
+        for y in range(0, self.wy // 2):
+            for x in range(lwx):
+                yo = self.wy - 1 - y
+                t = self.array[x + y * lwx], self.array[x + yo * lwx]
+                self.array[x + yo * lwx], self.array[x + y * lwx] = t
+                print(f">> {t}")
         self.drawPicture()
         self.modified = True
+
+    def cmdFlipH(self):
+            for y in range(0, self.wy):
+                for x in range(self.wx // 2):
+                    xo = self.wx - 1 - x
+                    p1 = self.getPixel(x, y)
+                    p2 = self.getPixel(xo, y)
+                    self.setPixel(x, y, p2)
+                    self.setPixel(xo, y, p1)
+            self.drawPicture()
+            self.modified = True
 
     def cmdImport(self):
         THR = THG = THB = 1
