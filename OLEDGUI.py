@@ -8,6 +8,9 @@ from tkinter import messagebox
 from os import path
 from socket import *
 import struct
+from threading import Thread
+from PIL import Image, ImageTk
+
 #
 # window definition
 #
@@ -44,35 +47,97 @@ class EditorWindow():
 
         Button(win, text='Load', takefocus=YES, command=self.cmdLoad).grid(padx=5, pady=5, row=2, column=0, sticky=W)
         Button(win, text='Import', takefocus=YES, command=self.cmdImport).grid(padx=5, pady=5, row=2, column=1, sticky=W)
-        Button(win, text='Save', takefocus=YES, command=self.cmdSave).grid(padx=5, pady=5, row=2, column=2, sticky=W)
-        Button(win, text='Close', takefocus=NO, command=self.cmdQuit).grid(padx=5, pady=5, row=2, column=3, sticky=W)
+        Button(win, text='Send', takefocus=YES, command=self.cmdSend).grid(padx=5, pady=5, row=2, column=2, sticky=W)
+        Button(win, text='Save', takefocus=YES, command=self.cmdSave).grid(padx=5, pady=5, row=2, column=3, sticky=W)
 
         Button(win, text='FlipVert', takefocus=YES, command=self.cmdFlipV).grid(padx=5, pady=5, row=3, column=0, sticky=W)
         Button(win, text='FlipHoriz', takefocus=YES, command=self.cmdFlipH).grid(padx=5, pady=5, row=3, column=1, sticky=W)
-        Button(win, text='Send', takefocus=YES, command=self.cmdSend).grid(padx=5, pady=5, row=3, column=3, sticky=W)
         
+        #------- draw canvas ----------------------------
         
-        #------- editor canvas ----------------------------
+        # Recived image
+        rxBitmap = Canvas(win, width=self.maxWidth + 20, height=self.maxHeight + 20, relief='flat', bg='black')
+        rxBitmap.grid(padx=5, row=4, column=0, sticky=NW)
+        self.rxImg = Image.new('RGB', (self.maxWidth, self.maxHeight))
+        self.tkImg = ImageTk.PhotoImage(self.rxImg)
+        rxBitmap.create_image(10, 10, image=self.tkImg, state='normal', anchor=NW)
+
         brd = 2
         self.brd = brd
         graph = Canvas(win, width=(wx)*sf, height=(wy)*sf, relief='flat', bd=brd, bg='gray')
-        graph.grid(padx=5, row=4, columnspan=4)
+        graph.grid(padx=5, row=4, column=1, columnspan=2)
         graph.bind('<Button-1>', self.cmdToggle)   # capture mouse button inside canvas
         self.graph = graph
 
+        # Editor preview
         self.scale = 3
         bmp = Canvas(win, width=self.wx * self.scale, height=self.wy * self.scale, relief='flat', bg='black')
-        bmp.grid(padx=5, row=4, column=2)
+        bmp.grid(padx=5, row=4, column=3, sticky=NW)
         self.bmp = bmp
+
+        # Device IP:port
+        self.labelIP_txt = 'Device IP: '
+        self.labelIP = Label(win, text='Device not found')
+        self.labelIP.grid(padx=5, pady=5, row=5, columnspan=4, sticky=W)
 
         if name != '':
             self.cmdLoad() 
         self.drawPicture()
 
         self.port = 6661
+        self.devAddr = ('','')
         self.udp = socket(AF_INET, SOCK_DGRAM)
         self.udp.bind(('',self.port))
-        self.udp.settimeout(5.0)
+        self.udp.settimeout(2.0)
+        
+        self.devThread = Thread(target=self.bgDeviceListen)
+        self.devThreadRun = True
+        self.devThread.start()
+
+    def bgDeviceListen(self):
+        while self.devThreadRun :
+            try :
+                arrayRx, self.devAddr = self.udp.recvfrom(1024)
+            except :
+                self.devAddr = ('','')
+            
+            if self.devAddr[0] == '' :
+                addrStr = 'Device not found'
+            else :
+                addrStr = self.labelIP_txt + f'{self.devAddr[0]}:{self.devAddr[1]}'
+                print(f'Device found @ {addrStr}')
+
+                for x in range(self.maxWidth) :
+                    for y in range(self.maxHeight) :
+                        if not self.devThreadRun : return
+                        p = arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7))
+                        if (p) :
+                            self.rxImg.putpixel((x,y),(255,255,255))
+                        else :
+                            self.rxImg.putpixel((x,y),(0,0,0))
+                try :
+                    self.tkImg.paste(self.rxImg)
+                except :
+                    return
+            try :
+                self.labelIP.config(text = addrStr)
+            except :
+                    return
+
+    def cmdSend(self):
+        if self.devAddr[0] == '' :
+            print('Device not found')
+            return
+        
+        bmpType = 0 # Type 0 -> simple bitmap
+        xpos = (self.maxWidth - self.wx) // 2
+        ypos = (self.maxHeight - self.wy) // 2
+        data = bytearray(self.array)
+        pkt = struct.pack('<BBBBBB1024s', 1, bmpType, xpos, ypos, self.wx, self.wy, data)
+        
+        if self.udp.sendto(pkt, self.devAddr) > 0 :
+            print(f'Send bitmap to {self.devAddr[0]}:{self.devAddr[1]}')
+
 
     #-------------------- Graphs methods
     def drawPicture(self):
@@ -203,23 +268,6 @@ class EditorWindow():
                 print('File format could not be recognized!')
         except IOError: print('File %s not found' % self.filename.get())
     
-    def cmdSend(self):
-        print('Wait for reciveing broadcast to determine device IP')
-        try :
-            addr = self.udp.recvfrom(1024)[1]
-        except :
-            print('Timeout: send failed - no device found to be broadcasting')
-            return
-
-        bmpType = 0 # Type 0 -> simple bitmap
-        xpos = (self.maxWidth - self.wx) // 2
-        ypos = (self.maxHeight - self.wy) // 2
-        data = bytearray(self.array)
-        pkt = struct.pack('<BBBBBB1024s', 1, bmpType, xpos, ypos, self.wx, self.wy, data)
-
-        print(f'Send bitmap to {addr[0]}:{addr[1]}')
-        self.udp.sendto(pkt, addr)
-
     def cmdSave(self):
         filename = self.filename.get()
         if path.isfile(filename): 
@@ -258,8 +306,8 @@ class EditorWindow():
     def cmdQuit(self):
         if self.modified: 
             if not messagebox.askokcancel("Quit", "There are unsaved changes,\n are you sure?"): return
+        self.devThreadRun = False
         self.win.quit()
-        self.udp.close()
 
 if __name__ == '__main__': 
     filename = ''
