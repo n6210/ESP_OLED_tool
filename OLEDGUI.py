@@ -6,6 +6,8 @@ import sys
 from tkinter import *
 from tkinter import messagebox
 from os import path
+from socket import *
+import struct
 #
 # window definition
 #
@@ -17,6 +19,8 @@ class EditorWindow():
         win.protocol('WM_DELETE_WINDOW', self.cmdQuit)	# intercept Ctrl_Q and Close Window button
         self.win = win
         self.hexFormat = FALSE
+        self.maxWidth = 128
+        self.maxHeight = 64
 
         sf = 16
         self.sf = sf
@@ -45,6 +49,7 @@ class EditorWindow():
 
         Button(win, text='FlipVert', takefocus=YES, command=self.cmdFlipV).grid(padx=5, pady=5, row=3, column=0, sticky=W)
         Button(win, text='FlipHoriz', takefocus=YES, command=self.cmdFlipH).grid(padx=5, pady=5, row=3, column=1, sticky=W)
+        Button(win, text='Send', takefocus=YES, command=self.cmdSend).grid(padx=5, pady=5, row=3, column=3, sticky=W)
         
         
         #------- editor canvas ----------------------------
@@ -63,6 +68,11 @@ class EditorWindow():
         if name != '':
             self.cmdLoad() 
         self.drawPicture()
+
+        self.port = 6661
+        self.udp = socket(AF_INET, SOCK_DGRAM)
+        self.udp.bind(('',self.port))
+        self.udp.settimeout(5.0)
 
     #-------------------- Graphs methods
     def drawPicture(self):
@@ -192,6 +202,23 @@ class EditorWindow():
                     return 
                 print('File format could not be recognized!')
         except IOError: print('File %s not found' % self.filename.get())
+    
+    def cmdSend(self):
+        print('Wait for reciveing broadcast to determine device IP')
+        try :
+            addr = self.udp.recvfrom(1024)[1]
+        except :
+            print('Timeout: send failed - no device found to be broadcasting')
+            return
+
+        bmpType = 0 # Type 0 -> simple bitmap
+        xpos = (self.maxWidth - self.wx) // 2
+        ypos = (self.maxHeight - self.wy) // 2
+        data = bytearray(self.array)
+        pkt = struct.pack('<BBBBBB1024s', 1, bmpType, xpos, ypos, self.wx, self.wy, data)
+
+        print(f'Send bitmap to {addr[0]}:{addr[1]}')
+        self.udp.sendto(pkt, addr)
 
     def cmdSave(self):
         filename = self.filename.get()
@@ -232,6 +259,7 @@ class EditorWindow():
         if self.modified: 
             if not messagebox.askokcancel("Quit", "There are unsaved changes,\n are you sure?"): return
         self.win.quit()
+        self.udp.close()
 
 if __name__ == '__main__': 
     filename = ''
