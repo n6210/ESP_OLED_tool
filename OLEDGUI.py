@@ -20,6 +20,9 @@ class EditorWindow():
         win = Tk()
         win.title('OLED Picture Editor')
         win.protocol('WM_DELETE_WINDOW', self.cmdQuit)	# intercept Ctrl_Q and Close Window button
+        win.minsize(500, 400)
+        win.maxsize(500, 400)
+
         self.win = win
         self.hexFormat = FALSE
         self.maxWidth = 128
@@ -38,8 +41,9 @@ class EditorWindow():
         self.filename = StringVar()	
         self.filename.set(name)
 
-        e = Entry(win, width=32, takefocus=YES, textvariable = self.filename)
-        e.grid(padx=5, pady=5, row=1, column=1, sticky=W)
+        e = Entry(win, width=16, takefocus=YES, textvariable = self.filename)
+        e.place(x=80, y=5)
+        #e.grid(padx=5, pady=5, row=1, column=1, sticky=W)
         e.focus_set()   # take over input from other windows, select address field
         e.icursor(END)  # set cursor after last digit
 
@@ -61,16 +65,20 @@ class EditorWindow():
         self.rxImg = Image.new('RGB', (self.maxWidth, self.maxHeight))
         self.tkImg = ImageTk.PhotoImage(self.rxImg)
         rxBitmap.create_image(10, 10, image=self.tkImg, state='normal', anchor=NW)
+        self.rxBitmap = rxBitmap
 
         brd = 2
         self.brd = brd
         graph = Canvas(win, width=(wx)*sf, height=(wy)*sf, relief='flat', bd=brd, bg='gray')
         graph.grid(padx=5, row=4, column=1, columnspan=2)
         graph.bind('<Button-1>', self.cmdToggle)   # capture mouse button inside canvas
+        graph.bind('<B1-Motion>', self.cmdDrag)
+        graph.bind('<B2-Motion>', self.cmdDrag)
+        
         self.graph = graph
 
         # Editor preview
-        self.scale = 3
+        self.scale = 2
         bmp = Canvas(win, width=10 + self.wx * self.scale, height=10 + self.wy * self.scale, relief='flat', bg='black')
         bmp.grid(padx=5, row=4, column=3, sticky=NW)
         self.bmpImg = Image.new('RGB', (self.wx, self.wy))
@@ -91,11 +99,10 @@ class EditorWindow():
         self.devAddr = ('','')
         self.udp = socket(AF_INET, SOCK_DGRAM)
         self.udp.bind(('',self.port))
-        self.udp.settimeout(2.0)
+        self.udp.settimeout(1.0)
         
-        self.devThread = Thread(target=self.bgDeviceListen)
         self.devThreadRun = True
-        self.devThread.start()
+        self.devThread = Thread(target=self.bgDeviceListen).start()
 
     def bgDeviceListen(self):
         while self.devThreadRun :
@@ -104,17 +111,12 @@ class EditorWindow():
             except :
                 self.devAddr = ('','')
             
-            if self.devAddr[0] == '' :
-                addrStr = 'Device not found'
-            else :
-                addrStr = self.labelIP_txt + f'{self.devAddr[0]}:{self.devAddr[1]}'
-                print(f'Device found @ {addrStr}')
+            addrStr = 'Device not found' if self.devAddr[0] == '' else self.labelIP_txt + f'{self.devAddr[0]}:{self.devAddr[1]}'
+            #print(f'Device found @ {addrStr}')
 
+            if self.devAddr[0] != '' :
                 for x in range(self.maxWidth) :
                     for y in range(self.maxHeight) :
-                        if not self.devThreadRun :
-                            return
-                        
                         if (arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7))) :
                             self.rxImg.putpixel((x,y),(255,255,255))
                         else :
@@ -122,11 +124,14 @@ class EditorWindow():
                 try :
                     self.tkImg.paste(self.rxImg)
                 except :
-                    return
+                    self.devThreadRun = False
+                
             try :
                 self.labelIP.config(text = addrStr)
+                color = 'red' if (self.devAddr[0] == '') else 'black'
+                self.rxBitmap.create_rectangle(0, 0, self.rxBitmap.winfo_width(), self.rxBitmap.winfo_height(), outline=color, width=10, state=NORMAL)
             except :
-                    return
+                self.devThreadRun = False
 
     def cmdSend(self):
         if self.devAddr[0] == '' :
@@ -140,7 +145,7 @@ class EditorWindow():
         pkt = struct.pack('<BBBBBB1024s', 1, bmpType, xpos, ypos, self.wx, self.wy, data)
         
         if self.udp.sendto(pkt, self.devAddr) > 0 :
-            print(f'Send bitmap to {self.devAddr[0]}:{self.devAddr[1]}')
+            print(f'Bitmap sent to device @ {self.devAddr[0]}:{self.devAddr[1]}')
 
 
     #-------------------- Graphs methods
@@ -179,10 +184,17 @@ class EditorWindow():
         self.bmptkImg.paste(self.bmpImg.resize((self.wx * self.scale, self.wy * self.scale), Image.BOX))
 
     def cmdToggle(self, event):
-        x = int((self.graph.canvasx( event.x)-1-self.brd)/self.sf) 
-        y = int((self.graph.canvasy( event.y)-1-self.brd)/self.sf) 
+        x = int((self.graph.canvasx(event.x)-1-self.brd)/self.sf) 
+        y = int((self.graph.canvasy(event.y)-1-self.brd)/self.sf) 
         if x < self.wx and y < self.wy:
             self.invPixel(x, y)
+            self.modified = True
+
+    def cmdDrag(self, event):
+        x = int((self.graph.canvasx(event.x)-1-self.brd)/self.sf) 
+        y = int((self.graph.canvasy(event.y)-1-self.brd)/self.sf) 
+        if x < self.wx and y < self.wy:
+            self.setPixel(x, y, 1)
             self.modified = True
 
     def cmdFlipV(self):
