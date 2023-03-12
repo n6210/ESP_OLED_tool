@@ -73,8 +73,8 @@ class EditorWindow():
         graph.grid(padx=5, row=4, column=1, columnspan=2)
         graph.bind('<Button-1>', self.cmdToggle)   # capture mouse button inside canvas
         graph.bind('<B1-Motion>', self.cmdDrag)
-        graph.bind('<B2-Motion>', self.cmdDrag)
-        
+        graph.bind('<B2-Motion>', self.cmdClear)
+        graph.bind('<B3-Motion>', self.cmdClear)
         self.graph = graph
 
         # Editor preview
@@ -195,6 +195,13 @@ class EditorWindow():
         y = int((self.graph.canvasy(event.y)-1-self.brd)/self.sf) 
         if x < self.wx and y < self.wy:
             self.setPixel(x, y, 1)
+            self.modified = True
+
+    def cmdClear(self, event):
+        x = int((self.graph.canvasx(event.x)-1-self.brd)/self.sf) 
+        y = int((self.graph.canvasy(event.y)-1-self.brd)/self.sf) 
+        if x < self.wx and y < self.wy:
+            self.setPixel(x, y, 0)
             self.modified = True
 
     def cmdFlipV(self):
