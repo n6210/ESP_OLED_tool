@@ -56,6 +56,8 @@ class EditorWindow():
 
         Button(win, text='FlipVert', takefocus=YES, command=self.cmdFlipV).grid(padx=5, pady=5, row=3, column=0, sticky=W)
         Button(win, text='FlipHoriz', takefocus=YES, command=self.cmdFlipH).grid(padx=5, pady=5, row=3, column=1, sticky=W)
+        #self.labelPos = Label(win, text='Test')
+        #self.labelPos.grid(padx=5, pady=5, row=3, column=2, sticky=W)
         
         #------- draw canvas ----------------------------
         
@@ -80,16 +82,17 @@ class EditorWindow():
         # Editor preview
         self.scale = 2
         bmp = Canvas(win, width=10 + self.wx * self.scale, height=10 + self.wy * self.scale, relief='flat', bg='black')
-        bmp.grid(padx=5, row=4, column=3, sticky=NW)
+        #bmp.grid(padx=5, row=4, column=3, sticky=NW)
+        bmp.place(x = 110, y=200)
         self.bmpImg = Image.new('RGB', (self.wx, self.wy))
         self.bmptkImg = ImageTk.PhotoImage(self.bmpImg.resize((self.wx * self.scale, self.wy * self.scale)))
-        bmp.create_image(5,5, image=self.bmptkImg, state='normal', anchor=NW)
+        bmp.create_image(6,6, image=self.bmptkImg, state='normal', anchor=NW)
         self.bmp = bmp
 
         # Device IP:port
         self.labelIP_txt = 'Device IP: '
         self.labelIP = Label(win, text='Device not found')
-        self.labelIP.grid(padx=5, pady=5, row=5, columnspan=4, sticky=W)
+        self.labelIP.grid(padx=5, pady=5, row=5, columnspan=3, sticky=W)
 
         if name != '':
             self.cmdLoad() 
@@ -103,6 +106,8 @@ class EditorWindow():
         
         self.devThreadRun = True
         self.devThread = Thread(target=self.bgDeviceListen).start()
+
+        #win.bind('<Motion>', self.cmdShowPos)
 
     def bgDeviceListen(self):
         while self.devThreadRun :
@@ -144,6 +149,10 @@ class EditorWindow():
         
         if self.udp.sendto(pkt, self.devAddr) > 0 :
             print(f'Bitmap sent to device @ {self.devAddr[0]}:{self.devAddr[1]}')
+
+    def cmdShowPos(self, event) :
+        posStr = f'X:{event.x} Y:{event.y}'
+        self.labelPos.config(text = posStr)
 
     #-------------------- Graphs methods
     def drawPicture(self):
@@ -188,14 +197,14 @@ class EditorWindow():
         x = int((self.graph.canvasx(event.x)-1-self.brd)/self.sf) 
         y = int((self.graph.canvasy(event.y)-1-self.brd)/self.sf) 
         if x < self.wx and y < self.wy:
-            self.setPixel(x, y, 1)
+            self.setPixel(x, y, True)
             self.modified = True
 
     def cmdClear(self, event):
         x = int((self.graph.canvasx(event.x)-1-self.brd)/self.sf) 
         y = int((self.graph.canvasy(event.y)-1-self.brd)/self.sf) 
         if x < self.wx and y < self.wy:
-            self.setPixel(x, y, 0)
+            self.setPixel(x, y, False)
             self.modified = True
 
     def cmdFlipV(self):
