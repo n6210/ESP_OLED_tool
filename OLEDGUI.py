@@ -99,7 +99,7 @@ class EditorWindow():
         self.devAddr = ('','')
         self.udp = socket(AF_INET, SOCK_DGRAM)
         self.udp.bind(('',self.port))
-        self.udp.settimeout(1.0)
+        self.udp.settimeout(1.5)
         
         self.devThreadRun = True
         self.devThread = Thread(target=self.bgDeviceListen).start()
@@ -117,10 +117,8 @@ class EditorWindow():
             if self.devAddr[0] != '' :
                 for x in range(self.maxWidth) :
                     for y in range(self.maxHeight) :
-                        if (arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7))) :
-                            self.rxImg.putpixel((x,y),(255,255,255))
-                        else :
-                            self.rxImg.putpixel((x,y),(0,0,0))
+                        p = (arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7)))
+                        self.rxImg.putpixel((x,y),(255,255,255) if p else (0,0,0))
                 try :
                     self.tkImg.paste(self.rxImg)
                 except :
@@ -146,7 +144,6 @@ class EditorWindow():
         
         if self.udp.sendto(pkt, self.devAddr) > 0 :
             print(f'Bitmap sent to device @ {self.devAddr[0]}:{self.devAddr[1]}')
-
 
     #-------------------- Graphs methods
     def drawPicture(self):
@@ -175,12 +172,9 @@ class EditorWindow():
     def drawPixel(self, x, y):
         sf = self.sf
         brd = 1+self.brd
-        if self.getPixel(x, y):
-            self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'white')
-            self.bmpImg.putpixel((x,y), (255,255,255))
-        else:
-            self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'black')
-            self.bmpImg.putpixel((x,y), (0,0,0))
+        p = self.getPixel(x, y)
+        self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'white' if p else 'black')
+        self.bmpImg.putpixel((x,y), (255,255,255) if p else (0,0,0))
         self.bmptkImg.paste(self.bmpImg.resize((self.wx * self.scale, self.wy * self.scale), Image.BOX))
 
     def cmdToggle(self, event):
