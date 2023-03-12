@@ -71,8 +71,11 @@ class EditorWindow():
 
         # Editor preview
         self.scale = 3
-        bmp = Canvas(win, width=self.wx * self.scale, height=self.wy * self.scale, relief='flat', bg='black')
+        bmp = Canvas(win, width=10 + self.wx * self.scale, height=10 + self.wy * self.scale, relief='flat', bg='black')
         bmp.grid(padx=5, row=4, column=3, sticky=NW)
+        self.bmpImg = Image.new('RGB', (self.wx, self.wy))
+        self.bmptkImg = ImageTk.PhotoImage(self.bmpImg.resize((self.wx * self.scale, self.wy * self.scale)))
+        bmp.create_image(5,5, image=self.bmptkImg, state='normal', anchor=NW)
         self.bmp = bmp
 
         # Device IP:port
@@ -109,9 +112,10 @@ class EditorWindow():
 
                 for x in range(self.maxWidth) :
                     for y in range(self.maxHeight) :
-                        if not self.devThreadRun : return
-                        p = arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7))
-                        if (p) :
+                        if not self.devThreadRun :
+                            return
+                        
+                        if (arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7))) :
                             self.rxImg.putpixel((x,y),(255,255,255))
                         else :
                             self.rxImg.putpixel((x,y),(0,0,0))
@@ -168,10 +172,11 @@ class EditorWindow():
         brd = 1+self.brd
         if self.getPixel(x, y):
             self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'white')
-            self.bmp.create_rectangle(x*self.scale, y*self.scale, (x+1)*self.scale, (y+1)*self.scale, fill='white', activeoutline='white')
+            self.bmpImg.putpixel((x,y), (255,255,255))
         else:
             self.graph.create_rectangle(brd+x*sf, brd+y*sf, brd+(x+1)*sf, brd+(y+1)*sf, fill = 'black')
-            self.bmp.create_rectangle(x*self.scale, y*self.scale, (x+1)*self.scale, (y+1)*self.scale, fill='black', activeoutline='black')
+            self.bmpImg.putpixel((x,y), (0,0,0))
+        self.bmptkImg.paste(self.bmpImg.resize((self.wx * self.scale, self.wy * self.scale), Image.BOX))
 
     def cmdToggle(self, event):
         x = int((self.graph.canvasx( event.x)-1-self.brd)/self.sf) 
