@@ -1,4 +1,4 @@
-#!usr/bin/env python3
+#!/usr/bin/env python3
 #
 # OLED display bitmap editor
 #
@@ -339,5 +339,5 @@ class EditorWindow():
 if __name__ == '__main__': 
     filename = ''
     if len( sys.argv) > 1: filename = sys.argv[1]
-    EditorWindow( name = filename)
+    EditorWindow(name = filename)
     mainloop()
