@@ -346,6 +346,6 @@ if __name__ == '__main__':
     filename = ''
     if len( sys.argv) > 1: filename = sys.argv[1]
     ew = EditorWindow(name = filename)
-    ew.win.after(0, ew.bgDeviceListen)
+    ew.win.after(100, ew.bgDeviceListen)
     ew.win.mainloop()
 
