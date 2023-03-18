@@ -5,6 +5,7 @@
 import sys
 from tkinter import *
 from tkinter import messagebox
+from tkinter import filedialog
 from os import path
 from socket import *
 import struct
@@ -46,7 +47,7 @@ class EditorWindow():
         #e.grid(padx=5, pady=5, row=1, column=1, sticky=W)
         e.focus_set()   # take over input from other windows, select address field
         e.icursor(END)  # set cursor after last digit
-
+        
         Checkbutton(win, text='Format hex', takefocus=YES, command=self.cmdSetFormat).grid(padx=5, pady=5, row=1, column=2)
 
         Button(win, text='Load', takefocus=YES, command=self.cmdLoad).grid(padx=5, pady=5, row=2, column=0, sticky=W)
@@ -104,37 +105,35 @@ class EditorWindow():
         self.udp.bind(('',self.port))
         self.udp.settimeout(1.5)
         
-        self.devThreadRun = True
-        self.devThread = Thread(target=self.bgDeviceListen).start()
-
-        #win.bind('<Motion>', self.cmdShowPos)
+        self.devThreadRun = 1500
 
     def bgDeviceListen(self):
-        while self.devThreadRun :
-            try :
-                arrayRx, self.devAddr = self.udp.recvfrom(1024)
-            except :
-                self.devAddr = ('','')
-            
-            addrStr = 'Device not found' if self.devAddr[0] == '' else self.labelIP_txt + f'{self.devAddr[0]}:{self.devAddr[1]}'
-            #print(f'Device found @ {addrStr}')
+        ew.win.after(self.devThreadRun, self.bgDeviceListen)
 
-            if self.devAddr[0] != '' :
-                for x in range(self.maxWidth) :
-                    for y in range(self.maxHeight) :
-                        p = (arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7)))
-                        self.rxImg.putpixel((x,y),(255,255,255) if p else (0,0,0))
-                try :
-                    self.tkImg.paste(self.rxImg)
-                except :
-                    self.devThreadRun = False
-                
+        try :
+            arrayRx, self.devAddr = self.udp.recvfrom(1024)
+        except :
+            self.devAddr = ('','')
+        
+        addrStr = 'Device not found' if self.devAddr[0] == '' else self.labelIP_txt + f'{self.devAddr[0]}:{self.devAddr[1]}'
+        print(f'Device found @ {addrStr}')
+
+        if self.devAddr[0] != '' :
+            for x in range(self.maxWidth) :
+                for y in range(self.maxHeight) :
+                    p = (arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7)))
+                    self.rxImg.putpixel((x,y),(255,255,255) if p else (0,0,0))
             try :
-                self.labelIP.config(text = addrStr)
-                color = 'red' if (self.devAddr[0] == '') else 'black'
-                self.rxBitmap.create_rectangle(0, 0, self.rxBitmap.winfo_width(), self.rxBitmap.winfo_height(), outline=color, width=10, state=NORMAL)
+                self.tkImg.paste(self.rxImg)
             except :
-                self.devThreadRun = False
+                return
+            
+        try :
+            self.labelIP.config(text = addrStr)
+            color = 'red' if (self.devAddr[0] == '') else 'black'
+            self.rxBitmap.create_rectangle(0, 0, self.rxBitmap.winfo_width(), self.rxBitmap.winfo_height(), outline=color, width=10, state=NORMAL)
+        except :
+            pass
 
     def cmdSend(self):
         if self.devAddr[0] == '' :
@@ -259,41 +258,48 @@ class EditorWindow():
         if self.modified:
             if not messagebox.askokcancel('Load', 'Unsaved changes will be lost,\n are you sure?', icon='warning'):            
                 return
-        i = 0
-        last = (self.wx // 8 * self.wy) 
-        try:
-            with open(self.filename.get()) as f:
-                ch = f.read(1)
-                while ch != '{': ch = f.read(1)
-                while i < last:
+
+        fname = filedialog.askopenfilename(initialdir=".", initialfile=self.filename.get(), title="Select file", filetypes=(('header files','*.h'),('all files','*.*')))
+        if fname is not None :
+            print(f'>>>>{fname}')
+            self.filename.set(fname.split('/')[-1])
+            
+            # Open and process file
+            i = 0
+            last = (self.wx // 8 * self.wy) 
+            try:
+                with open(self.filename.get()) as f:
                     ch = f.read(1)
-                    while ch < '0' : ch = f.read(1)
-                    if ch != '0': 
-                        if ch == '}' :
-                            self.drawPicture()
-                            self.modified = False
-                            return
-                        else :
-                            break
-                    ch = f.read(1)
-                    if ch == 'x' :
-                        s = f.read(2)
-                        try: self.array[i] = int('0x'+s, base=16)
-                        except ValueError: break
-                    elif ch == 'b' :
-                        s = f.read(8)
-                        try: 
-                            self.array[i] = int('0b'+s, base=2)
-                        except ValueError: break
-                            
-                    i += 1 
-                else: 
-                    print('File loaded successfully')
-                    self.drawPicture()
-                    self.modified = False
-                    return 
-                print('File format could not be recognized!')
-        except IOError: print('File %s not found' % self.filename.get())
+                    while ch != '{': ch = f.read(1)
+                    while i < last:
+                        ch = f.read(1)
+                        while ch < '0' : ch = f.read(1)
+                        if ch != '0': 
+                            if ch == '}' :
+                                self.drawPicture()
+                                self.modified = False
+                                return
+                            else :
+                                break
+                        ch = f.read(1)
+                        if ch == 'x' :
+                            s = f.read(2)
+                            try: self.array[i] = int('0x'+s, base=16)
+                            except ValueError: break
+                        elif ch == 'b' :
+                            s = f.read(8)
+                            try: 
+                                self.array[i] = int('0b'+s, base=2)
+                            except ValueError: break
+                                
+                        i += 1 
+                    else: 
+                        print('File loaded successfully')
+                        self.drawPicture()
+                        self.modified = False
+                        return 
+                    print('File format could not be recognized!')
+            except IOError: print('File %s not found' % self.filename.get())
     
     def cmdSave(self):
         filename = self.filename.get()
@@ -339,5 +345,7 @@ class EditorWindow():
 if __name__ == '__main__': 
     filename = ''
     if len( sys.argv) > 1: filename = sys.argv[1]
-    EditorWindow(name = filename)
-    mainloop()
+    ew = EditorWindow(name = filename)
+    ew.win.after(0, ew.bgDeviceListen)
+    ew.win.mainloop()
+
