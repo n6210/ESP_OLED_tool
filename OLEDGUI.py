@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+
 #
 # OLED display bitmap editor
 #
+
 import sys
 from tkinter import *
 from tkinter import messagebox
@@ -9,14 +11,12 @@ from tkinter import filedialog
 from os import path
 from socket import *
 import struct
-from threading import Thread
 from PIL import Image, ImageTk
 
 #
 # window definition
 #
 class EditorWindow():
-
     def __init__(self, parent = None, name=''):
         win = Tk()
         win.title('OLED Picture Editor')
@@ -34,7 +34,7 @@ class EditorWindow():
         
         wx = 16; wy = 16
         self.wx = wx; self.wy = wy
-        self.array = [ 0 for x in range( wx // 8 * wy)]
+        self.array = [ 0 for x in range(wx // 8 * wy)]
         self.modified = False
 
         Label(win, text='Filename:').grid(padx=5, pady=5, row=1, column=0, sticky=W)
@@ -42,7 +42,7 @@ class EditorWindow():
         self.filename = StringVar()	
         self.filename.set(name)
 
-        e = Entry(win, width=16, takefocus=YES, textvariable = self.filename)
+        e = Entry(win, width=24, takefocus=YES, textvariable = self.filename)
         e.place(x=80, y=5)
         #e.grid(padx=5, pady=5, row=1, column=1, sticky=W)
         e.focus_set()   # take over input from other windows, select address field
@@ -62,7 +62,7 @@ class EditorWindow():
         
         #------- draw canvas ----------------------------
         
-        # Recived image
+        # Received image canvas
         rxBitmap = Canvas(win, width=self.maxWidth + 20, height=self.maxHeight + 20, relief='flat', bg='black')
         rxBitmap.grid(padx=5, row=4, column=0, sticky=NW)
         self.rxImg = Image.new('RGB', (self.maxWidth, self.maxHeight))
@@ -70,6 +70,7 @@ class EditorWindow():
         rxBitmap.create_image(10, 10, image=self.tkImg, state='normal', anchor=NW)
         self.rxBitmap = rxBitmap
 
+        # Editor canvas
         brd = 2
         self.brd = brd
         graph = Canvas(win, width=(wx)*sf, height=(wy)*sf, relief='flat', bd=brd, bg='gray')
@@ -80,7 +81,7 @@ class EditorWindow():
         graph.bind('<B3-Motion>', self.cmdClear)
         self.graph = graph
 
-        # Editor preview
+        # Editor preview canvas
         self.scale = 2
         bmp = Canvas(win, width=10 + self.wx * self.scale, height=10 + self.wy * self.scale, relief='flat', bg='black')
         #bmp.grid(padx=5, row=4, column=3, sticky=NW)
@@ -90,7 +91,7 @@ class EditorWindow():
         bmp.create_image(6,6, image=self.bmptkImg, state='normal', anchor=NW)
         self.bmp = bmp
 
-        # Device IP:port
+        # Label with device IP:port
         self.labelIP_txt = 'Device IP: '
         self.labelIP = Label(win, text='Device not found')
         self.labelIP.grid(padx=5, pady=5, row=5, columnspan=3, sticky=W)
@@ -103,37 +104,39 @@ class EditorWindow():
         self.devAddr = ('','')
         self.udp = socket(AF_INET, SOCK_DGRAM)
         self.udp.bind(('',self.port))
-        self.udp.settimeout(1.5)
-        
-        self.devThreadRun = 1500
+        self.udp.settimeout(0.0)
+
+        self.udp_rx_cnt_timeout = 10
+        self.ud_rx_cnt = self.udp_rx_cnt_timeout
+        self.devThreadRun = 250
 
     def bgDeviceListen(self):
         ew.win.after(self.devThreadRun, self.bgDeviceListen)
-
+        arrayRx = None
         try :
             arrayRx, self.devAddr = self.udp.recvfrom(1024)
+            self.udp_rx_cnt = self.udp_rx_cnt_timeout
         except :
-            self.devAddr = ('','')
+            if self.udp_rx_cnt > 0 :
+                self.udp_rx_cnt -= 1
+            else :
+                self.devAddr = ('','')
         
         addrStr = 'Device not found' if self.devAddr[0] == '' else self.labelIP_txt + f'{self.devAddr[0]}:{self.devAddr[1]}'
-        print(f'Device found @ {addrStr}')
+        print(f'{addrStr}')
 
-        if self.devAddr[0] != '' :
+        if arrayRx != None :
             for x in range(self.maxWidth) :
                 for y in range(self.maxHeight) :
                     p = (arrayRx[x + ((y//8) * self.maxWidth)] & (1 << (y & 7)))
                     self.rxImg.putpixel((x,y),(255,255,255) if p else (0,0,0))
-            try :
-                self.tkImg.paste(self.rxImg)
-            except :
-                return
+            self.tkImg.paste(self.rxImg)
             
-        try :
-            self.labelIP.config(text = addrStr)
-            color = 'red' if (self.devAddr[0] == '') else 'black'
-            self.rxBitmap.create_rectangle(0, 0, self.rxBitmap.winfo_width(), self.rxBitmap.winfo_height(), outline=color, width=10, state=NORMAL)
-        except :
-            pass
+        self.labelIP.config(text = addrStr)
+        #self.labelIP.update()
+        color = 'red' if (self.devAddr[0] == '') else 'black'
+        self.rxBitmap.create_rectangle(0, 0, self.rxBitmap.winfo_width(), self.rxBitmap.winfo_height(), outline=color, width=10, state=NORMAL)
+        #self.rxBitmap.update()
 
     def cmdSend(self):
         if self.devAddr[0] == '' :
@@ -248,9 +251,10 @@ class EditorWindow():
             wy = min(self.wy, photo.height())
             for y in range(wy):
                 for x in range(wx):
-                    r, g, b = map( lambda x: int(x), photo.get( x, y).split())
-                    if (r, g, b) == (0,0,0) or (r, g, b) == (255, 255, 255): continue  # discard transparent and white
-                    if r > THR or g > THG or b > THB : self.setPixel( x, y)
+                    r, g, b = map(lambda x: int(x), photo.get(x, y).split())
+                    if (r, g, b) == (0,0,0) or (r, g, b) == (255, 255, 255):
+                        continue  # discard transparent and white
+                    if r > THR or g > THG or b > THB : self.setPixel(x, y)
             print('File %s imported successfully' % filename)
             self.modified = False
 
@@ -261,7 +265,7 @@ class EditorWindow():
 
         fname = filedialog.askopenfilename(initialdir=".", initialfile=self.filename.get(), title="Select file", filetypes=(('header files','*.h'),('all files','*.*')))
         if fname is not None :
-            print(f'>>>>{fname}')
+            #print(f'>>>>{fname}')
             self.filename.set(fname.split('/')[-1])
             
             # Open and process file
@@ -316,7 +320,7 @@ class EditorWindow():
             with open(filename, "wt") as f:
                 f.write('/*\n')
                 f.write(' *  Arduino OLED display bitmap \n')
-                f.write(' *  %s x %s \n' % ( self.wx, self.wy))
+                f.write(' *  %s x %s \n' % (self.wx, self.wy))
                 f.write(' */ \n')
                 f.write('static const unsigned char PROGMEM %s[] = { \n' % base)
                 if self.hexFormat :
@@ -339,12 +343,12 @@ class EditorWindow():
     def cmdQuit(self):
         if self.modified: 
             if not messagebox.askokcancel("Quit", "There are unsaved changes,\n are you sure?"): return
-        self.devThreadRun = False
         self.win.quit()
 
 if __name__ == '__main__': 
     filename = ''
-    if len( sys.argv) > 1: filename = sys.argv[1]
+    if len(sys.argv) > 1:
+        filename = sys.argv[1]
     ew = EditorWindow(name = filename)
     ew.win.after(100, ew.bgDeviceListen)
     ew.win.mainloop()
