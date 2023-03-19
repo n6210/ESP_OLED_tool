@@ -107,7 +107,7 @@ class EditorWindow():
         self.udp.settimeout(0.0)
 
         self.udp_rx_cnt_timeout = 10
-        self.ud_rx_cnt = self.udp_rx_cnt_timeout
+        self.udp_rx_cnt = self.udp_rx_cnt_timeout
         self.devThreadRun = 250
 
     def bgDeviceListen(self):
@@ -310,12 +310,19 @@ class EditorWindow():
         if path.isfile(filename): 
             if not messagebox.askokcancel('Save', 'File %s already exist!\n Overwrite?'% filename):            
                 return            
+        
+        if len(filename) == 0 :
+            filename = filedialog.asksaveasfilename(initialdir=".", initialfile=self.filename.get(), title="Select file", filetypes=(('header files','*.h'),('all files','*.*')))
+            if filename == '' or filename == ():
+                return
+        
         base, ext = path.splitext(filename)
-        if ext == '': ext = '.h'
-        if ext != '.h':
+        if ext != '.h' :
             messagebox.showinfo('Error', 'Only .h files can be generated!', icon='warning')
             return
+        
         filename = base + ext
+        self.filename.set(filename.split('/')[-1])
         try:
             with open(filename, "wt") as f:
                 f.write('/*\n')
