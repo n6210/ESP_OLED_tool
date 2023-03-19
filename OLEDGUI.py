@@ -123,7 +123,7 @@ class EditorWindow():
                 self.devAddr = ('','')
         
         addrStr = 'Device not found' if self.devAddr[0] == '' else self.labelIP_txt + f'{self.devAddr[0]}:{self.devAddr[1]}'
-        print(f'{addrStr}')
+        #print(f'{addrStr}')
 
         if arrayRx != None :
             for x in range(self.maxWidth) :
@@ -134,7 +134,7 @@ class EditorWindow():
             
         self.labelIP.config(text = addrStr)
         #self.labelIP.update()
-        color = 'red' if (self.devAddr[0] == '') else 'black'
+        color = 'red' if (self.udp_rx_cnt == 0) else 'black'
         self.rxBitmap.create_rectangle(0, 0, self.rxBitmap.winfo_width(), self.rxBitmap.winfo_height(), outline=color, width=10, state=NORMAL)
         #self.rxBitmap.update()
 
